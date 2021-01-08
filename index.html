@@ -1,0 +1,224 @@
+<html>
+	<head>
+		<title>Mapping System</title>
+		<style>
+
+		body {
+			font-family: Monospace;
+			background-color: #252850;
+			margin: 0px;
+			overflow: hidden;
+		}
+
+		canvas {
+			width: 100%;
+			height: 100%;
+		}
+		
+	</style>
+		<script src="lib/three.min.js"></script>
+		<script src="lib/stats.min.js"></script>
+		<script src="lib/Coordinates.js"></script>
+		<script src="lib/OrbitControls.js"></script>
+		<script src="lib/dat.gui.min.js"></script>
+	</head>
+	<body>
+		<script>
+
+		var scene, camera, renderer, controls, stats, width, height, hemiLight;
+		var x_center, y_center, z_center;
+		var map_dir = 'maps/';
+		//var map_file_name = 'default.png';
+		
+		var map = {
+			map: "default"
+		};
+			
+		 var gui;
+		Start();
+		buildGui();
+		Update();
+
+		// funzione che genera la scena all'apertura della pagina web
+		function Start() {
+			scene = new THREE.Scene();
+
+			// camera
+			camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+			
+			
+					
+			renderer = new THREE.WebGLRenderer( {antialias: true} );
+			renderer.setSize( window.innerWidth, window.innerHeight );
+			renderer.setClearColor( 0x252850 );
+			renderer.setPixelRatio( window.devicePixelRatio );
+			document.body.appendChild( renderer.domElement );
+
+			// controllo dei moviementi della camera
+			controls = new THREE.OrbitControls( camera, renderer.domElement  );
+			
+			// luce dell'ambiente notturno
+			hemiLight = new THREE.HemisphereLight( 0x252850, 0x252850, 0.6 );
+			hemiLight.color.setHSL( 0.6, 1, 0.6 );
+			hemiLight.groundColor.setHSL( 0.095, 1, 0.75 );
+			hemiLight.position.set( 0, 500, 0 );
+			scene.add( hemiLight );
+
+
+			stats = new Stats();
+			stats.domElement.style.position = 'absolute';
+			stats.domElement.style.top = '0px';
+			document.body.appendChild( stats.domElement );
+
+			
+
+			// creazione della mappa
+			load_image(map['map']+'.png');
+			
+			
+		}
+
+		// funzione che permette l'aggiornamento della pagina
+		function Update() {
+			controls.update();
+			stats.update();
+			Render();
+			requestAnimationFrame( Update )
+		}
+
+		function Render(){
+			renderer.render(scene, camera);
+		}
+
+		// carca immagine che definsca spazio
+		function load_image(file_name){
+			var img = new Image();
+			img.onload = function() {
+				//recupera dati da img
+				var data = getHeightData(img,1);
+				//lo sfondo della scena
+				drawMap(data);
+			}
+			// carica la sorgente dell'immagine
+			img.src = map_dir.concat(file_name);
+
+		}
+		
+		// funzione per la lettura dei dati dall'immagine fornita di partenza
+		function getHeightData(img,scale) {
+				
+				width = img.width;
+				height = img.height;
+				if (scale == undefined) scale=1;
+				var canvas = document.createElement( 'canvas' );
+				canvas.width = img.width;
+				canvas.height = img.height;
+				var context = canvas.getContext( '2d' );
+				var size = img.width * img.height;
+				var data = new Float32Array( size );
+				context.drawImage(img,0,0);
+				for ( var i = 0; i < size; i ++ ) {
+						data[i] = 0
+				}
+				var imgd = context.getImageData(0, 0, img.width, img.height);
+				var pix = imgd.data;
+				var j=0;
+				for (var i = 0; i<pix.length; i +=4) {
+						var all = pix[i]+pix[i+1]+pix[i+2];  // all è compreso 0 - 255*3
+						data[j++] = scale*all/3;
+				}
+				return data;
+		}
+		
+		// funzione che disegna lo sonfo della scena
+		function drawMap(data){
+			var inside = false;
+			var old_z = -1;
+			var new_row = false;
+			for(var i=0; i<data.length; i++){
+				var x = i%width;
+				var y = 0;
+				var z = Math.floor(i/width);
+				if (old_z != z){
+					new_row = true;
+					old_z = z;
+					inside = false;
+				} else {
+					new_row = false;
+				}
+				console.log("inside="+inside);
+				if(data[i]<255){
+					for(var j=0; j<10; j++){
+					
+						var geometry = new THREE.BoxGeometry( 1, 1, 1 );
+						//console.log(i+") x="+x+" y="+y+" z="+z);
+						geometry.translate ( x, y+j, z );
+						var cube = new THREE.Mesh( geometry, new THREE.MeshBasicMaterial({color:0x000000}));
+						scene.add(cube);
+						geometry.dispose();
+					}
+					console.log("new row="+new_row);
+					if(new_row == true){
+						inside = true;
+					}
+					else {
+						inside = false;
+					}
+					
+				} else if(inside == true){ 
+					
+					var geometry = new THREE.BoxGeometry( 1, 1, 1 );
+					console.log(i+") x="+x+" y="+y+" z="+z+" inside="+inside);
+					geometry.translate ( x, y, z );
+					var cube = new THREE.Mesh( geometry, new THREE.MeshBasicMaterial({color:0xffffff}));
+					scene.add(cube);
+					geometry.dispose();
+				}
+				
+				
+
+				if(i == Math.floor(data.length/2)){
+					x_center = z; //i%width;
+					y_center = 0;
+					z_center = z;
+									
+					camera.position.set(x_center, y_center+75, z_center);	
+					
+					controls.target = new THREE.Vector3(x_center, y_center, z_center);
+				}
+			}
+		}
+
+		function changeMap(){
+			scene.children={};
+			scene.add( hemiLight );
+		}
+		
+		function clearGui() {
+
+  			if ( gui ) gui.destroy();
+				gui = new dat.GUI( { autoPlace: true } );
+				gui.domElement.id = 'gui';
+  			gui.open();
+
+  		}
+		
+		function buildGui() {
+  			clearGui();
+			var map_list = ["default", "test1"];
+			gui.add(map, "map", map_list).onChange( function(newVal) {
+				//console.log(newVal);
+				//console.log(scene.children);
+				for( var i = scene.children.length - 1; i >= 0; i--) { 
+					obj = scene.children[i];
+					scene.remove(obj); 
+				}
+				scene.add( hemiLight );
+				//console.log(scene.children);
+				load_image(newVal+".png");
+			});
+		}
+
+		</script>
+	</body>
+</html>
