@@ -24,43 +24,45 @@
 		<script type='text/javascript' src='lib/astar.js'></script>
 	</head>
 	<body>
-		<script>
+		<script type='text/javascript'>
+		// Assegnazione variabili
+		var maps_list = ["default", "obstacle", "rectangle_orr", "rectangle_vert","pentagon", ];
 		var myGraph = [];
 		var graph, path, walls;
 		var scene, camera, renderer, controls, stats, width, height, hemiLight;
 		var x_center, y_center, z_center;
+		var gui, start_cube, start_label, end_cube, end_label; 
+		var start_controller_x, start_controller_z, end_controller_x, end_controller_z, mapping_gui, pathfinding_gui; 
 		var show_points = false;
 		var map_dir = 'maps/';
-		var arrow = new THREE.TextureLoader().load('textures/yellow_arrow.png');
 		var settings = {
 			map: "default",
 			mapping: false,
 			pathfinding: false
 		};
 		
-			
-		var gui, start_cube, start_label, end_cube, end_label; //, warning_start_label, warning_end_label;
+		
+		// Avvio delle funzioni principali
 		Start();
 		buildGui();
 		Update();
 		
+		// Funzione per modificare la visualizzazzione quando la finestra viene ridimensionata
 		function onResize() {
-
-  			renderer.setSize( 0.75*window.innerWidth, window.innerHeight );
-  			camera.aspect = ( 0.75*window.innerWidth / window.innerHeight );
+  			renderer.setSize( window.innerWidth, window.innerHeight );
+  			camera.aspect = ( window.innerWidth / window.innerHeight );
   			camera.updateProjectionMatrix();
-
   		}
 
 		// funzione che genera la scena all'apertura della pagina web
 		function Start() {
+			// scena
 			scene = new THREE.Scene();
 
 			// camera
 			camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
 			
-			
-					
+			// render	
 			renderer = new THREE.WebGLRenderer( {antialias: true} );
 			renderer.setSize( window.innerWidth, window.innerHeight );
 			renderer.setClearColor( 0x252850 );
@@ -69,6 +71,11 @@
 
 			// controllo dei moviementi della camera
 			controls = new THREE.OrbitControls( camera, renderer.domElement  );
+			controls.addEventListener( 'change', Render );
+  			//controls.minDistance = 1;
+  			//controls.maxDistance = 10000;
+			//controls.target.copy(container.position);
+  			//controls.update();
 			
 			// luce dell'ambiente notturno
 			hemiLight = new THREE.HemisphereLight( 0x252850, 0x252850, 0.6 );
@@ -77,12 +84,13 @@
 			hemiLight.position.set( 0, 500, 0 );
 			scene.add( hemiLight );
 
-
+			// statistiche fps in alto a sinistra
 			stats = new Stats();
 			stats.domElement.style.position = 'absolute';
 			stats.domElement.style.top = '0px';
 			document.body.appendChild( stats.domElement );
 
+			// chiama onResize() quando viene modificata la dimensione della pagina
 			window.addEventListener( 'resize', onResize, false );
 			
 			// creazione della mappa
@@ -91,7 +99,7 @@
 			
 		}
 
-		// funzione che permette l'aggiornamento della pagina
+		// Funzioni per l'aggiornamento e il render della pagina
 		function Update() {
 			controls.update();
 			stats.update();
@@ -103,13 +111,13 @@
 			renderer.render(scene, camera);
 		}
 
-		// carca immagine che definsca spazio
+		// Carica immagine che definsca spazio
 		function load_image(file_name){
 			var img = new Image();
 			img.onload = function() {
-				//recupera dati da img
+				// recupera dati da img
 				var data = getHeightData(img,1);
-				//lo sfondo della scena
+				// disegna lo sfondo della scena
 				drawMap(data);
 			}
 			// carica la sorgente dell'immagine
@@ -143,11 +151,12 @@
 				return data;
 		}
 		
-		// funzione che disegna lo sonfo della scena
+		// funzione che disegna lo sfondo della scena
 		function drawMap(data){
 		var old_z = 0;
 		var row = [];
-		var wall_geometry = new THREE.Geometry();
+		// geometrie generali per ridurre complessità della scena
+		var wall_geometry = new THREE.Geometry(); 
 		var floor_geometry = new THREE.Geometry();
 			for(var i=0; i<data.length; i++){
 				var x = i%width;
@@ -159,18 +168,13 @@
 					row=[];
 				}	
 				if(data[i]<255){
+					// trovato sfondo NON BIANCO => è un muro 
 					row.push(0);
 					for(var j=0; j<5; j++){
 					
 						var geometry = new THREE.BoxGeometry( 1, 1, 1 );
-						//console.log(i+") x="+x+" y="+y+" z="+z);
-						//geometry.translate ( x, y+j, z );
-						var cube = new THREE.Mesh( geometry, new THREE.MeshBasicMaterial({color:0x000000}));
+						var cube = new THREE.Mesh( geometry );
 						cube.position.set( x, y+j, z );
-						/*if(j==1){
-							cube.name = "wall";
-						}*/
-						//scene.add(cube);
 						cube.updateMatrix();
 						wall_geometry.merge(cube.geometry, cube.matrix);
 						geometry.dispose();
@@ -178,31 +182,26 @@
 					
 					
 				} else { 
+					// trovato sfondo BIANCO => è un muro 
 					row.push(1);
 					var geometry = new THREE.BoxGeometry( 1, 1, 1 );
-					//geometry.translate ( x, y, z );
-					var cube = new THREE.Mesh( geometry, new THREE.MeshBasicMaterial({color:0xffffff}));
+					var cube = new THREE.Mesh( geometry );
 					cube.position.set( x, y, z );
 					cube.updateMatrix();
 					floor_geometry.merge(cube.geometry, cube.matrix);
-					//scene.add(cube);
 					geometry.dispose();
 				}
 				
-
-				if(i == Math.floor(data.length/2)){
-					x_center = z; //i%width;
-					y_center = 0;
-					z_center = z;
-									
-					camera.position.set(x_center, y_center+75, z_center);	
-					
-					controls.target = new THREE.Vector3(x_center, y_center, z_center);
-					
-					settings['start']= { x: x_center, z: z_center};
-					settings['end']= { x: x_center, z: z_center-3};
-				}
 			}
+			x_center = Math.round(width/2);
+			z_center = Math.round(height/2);
+			y_center = 0;
+			settings['start']= { x: x_center, z: z_center};
+			settings['end']= { x: x_center, z: z_center-3};
+			
+			camera.position.set(x_center, y_center+75, z_center);	
+			controls.target = new THREE.Vector3(x_center, y_center, z_center);
+			myGraph.push(row);
 			graph = new Graph(myGraph, {diagonal:true}); 
 			walls = new THREE.Mesh(wall_geometry, new THREE.MeshBasicMaterial({color:0x000000}));
 			walls.name="wall";
@@ -210,7 +209,7 @@
 			scene.add(walls);
 		}
 
-		
+		// elimina gui se presente
 		function clearGui() {
 
   			if ( gui ) gui.destroy();
@@ -220,26 +219,28 @@
 
   		}
 		
+		// crea gui
 		function buildGui() {
   			clearGui();
-			var map_list = ["default", "test1", "obstacle"];
-			gui.add(settings, "map", map_list).onChange( function(newVal) {
-				//console.log(newVal);
-				//console.log(scene.children);
+			// controllo per scegliere la mappa da usare come sfondo dalla lista  "maps_list"
+			gui.add(settings, "map", maps_list).onChange( function(newVal) {
 				for( var i = scene.children.length - 1; i >= 0; i--) { 
 					obj = scene.children[i];
 					scene.remove(obj); 
 				}
 				scene.add( hemiLight );
-				console.log(scene);
 				load_image(newVal+".png");
 				myGraph = [];
 				settings['mapping'] = false;
 				show_points = false;
 				settings['pathfing'] = false;
-				buildGui();
+				mapping_gui.setValue(false);
+				mapping_gui.updateDisplay();
+				pathfinding_gui.setValue(false);
+				pathfinding_gui.updateDisplay();
 			});
-			gui.add(settings, "mapping").onChange( function(newVal) {
+			// controllo per abilitare sistema di mapping
+			mapping_gui = gui.add(settings, "mapping").onChange( function(newVal) {
 				show_points = newVal;
 				if(newVal == false){
 					scene.remove(start_cube);
@@ -252,7 +253,7 @@
 				var poi = gui.addFolder('Points of Interest');
 				var start = poi.addFolder('Start Point');
 				
-				// Cube and label representing the starting point
+				// Cubo e label che rappresentano il punto di inizio
 				var geometry = new THREE.BoxGeometry( 1, 1, 1 );
 				start_cube = new THREE.Mesh( geometry, new THREE.MeshBasicMaterial({color:0x00ff00}) );
 				start_cube.name = "start_poi";
@@ -263,32 +264,33 @@
 				scene.add(start_cube);
 				start_cube.add(start_label);
 
+				// Cubo e label che rappresentano il punto di fine
 				var end = poi.addFolder('End Point');
-				// Cube and label representing the ending point
 				var geometry = new THREE.BoxGeometry( 1, 1, 1 );
 				end_cube = new THREE.Mesh( geometry, new THREE.MeshBasicMaterial({color:0x0000ff}));
-				start_cube.name = "end_poi";
+				end_cube.name = "end_poi";
 				end_cube.position.set ( settings['end']['x'], 1, settings['end']['z'] );
 				end_label = makeTextSprite(" End Point", { fontsize: 32, fontface: "Georgia", borderColor: {r:0, g:0, b:255, a:1.0} });
 				end_label.position.set(10, 5, 0);
 				scene.add(end_cube);
 				end_cube.add(end_label);
 				
-				
-				start.add(settings['start'], "x").min(0).max(width-1).onChange( function(newVal) {
+				// controlli per muovere modificare x e z
+				start_controller_x = start.add(settings['start'], "x").min(0).max(width-1).onChange( function(newVal) {
 					movePOI(start_cube, newVal, start_cube.position.z);
 				});
-				start.add(settings['start'], "z").min(0).max(height-1).onChange( function(newVal) {
+				start_controller_z =start.add(settings['start'], "z").min(0).max(height-1).onChange( function(newVal) {
 					movePOI(start_cube, start_cube.position.x, newVal);
 				});
-				end.add(settings['end'], "x").min(0).max(width-1).onChange( function(newVal) {
+				end_controller_x =end.add(settings['end'], "x").min(0).max(width-1).onChange( function(newVal) {
 					movePOI(end_cube, newVal, end_cube.position.z);
 				});
-				end.add(settings['end'], "z").min(0).max(height-1).onChange( function(newVal) {
+				end_controller_z = end.add(settings['end'], "z").min(0).max(height-1).onChange( function(newVal) {
 					movePOI(end_cube, end_cube.position.x, newVal);
 				});
 				
-				gui.add(settings, "pathfinding").onChange( function(newVal) {
+				// controllo per fornire il percorso dal punto di inizio al punto di fine
+				pathfinding_gui = gui.add(settings, "pathfinding").onChange( function(newVal) {
 					if(newVal == true){
 						find_draw_path(start_cube.position, end_cube.position);
 					} else {
@@ -298,6 +300,7 @@
 			}
 		}
 		
+		// funzioni per creare una label
 		function makeTextSprite( message, parameters ){
 			if ( parameters === undefined ) parameters = {};
 			var fontface = parameters.hasOwnProperty("fontface") ? parameters["fontface"] : "Arial";
@@ -347,34 +350,17 @@
 		}
 		
 		
-			
+		// funzione per controllare se un punto nella posizone (x, z), c'è un muro	
 		function checkInWall(x, z){
 			res = false;
-			/*scene.traverse(function(child) {
-			console.log(child);
-				if (child.name === "wall" && Math.floor(child.position.x) == Math.floor(x) && Math.floor(child.position.z) == Math.floor(z)) {
-					res = true;
-				}
-
-			}); 
-			var raycaster = new THREE.Raycaster();
-
-			raycaster.set(new THREE.Vector3(x, 1, z), new THREE.Vector3(1,1,1));
-			var intersects = raycaster.intersectObject(walls);
-			console.log(intersects);
-			if( intersects.length %2 === 1) { // Points is in objet
-			   res = true;
-			}
-			if (intersects.length>0){
-				res = true;
-			}*/
-			if ( myGraph[Math.floor(z)][Math.floor(x)] == 0){
+			if (Math.round(x)>=0 && Math.round(x)<width && Math.round(z)>=0 && Math.round(z)<height && myGraph[Math.round(z)][Math.round(x)] == 0){
 				res = true;
 			}
 			
 			return res;
 		}
 		
+		// funzione per muovere il punto di inzio e quello di fine tramite la GUI
 		function movePOI(obj, x, z){
 			obj.position.set(x, 1, z);
 			var inWall = checkInWall(x, z);
@@ -397,76 +383,77 @@
 			}
 		}
 		
+		// funzione per calcolre e disegnare il percorso
 		function find_draw_path(start, end){
-			//console.log("start pathfinding");
 			var best_path = find_path_astar(start, end);
-			//console.log("best path: ");
-			//console.log(best_path);
 			draw_path(best_path, end);
 		}
 		
+		// funzione per disegnare il percorso una volta trovato
 		function draw_path(path, end){
-			//console.log("draw_path");
-			var path_geometry = new THREE.Geometry();
+			var path_geometry = new THREE.Geometry(); // geometria unica di tuttto il percorso per ridurre complessità generale
 			var idx = 1;
 			path.forEach( pos => {
-				//console.log(pos);
-				var geometry = new THREE.BoxGeometry( 1, 0.1, 1 );
-				var path_cube = new THREE.Mesh( geometry, new THREE.MeshBasicMaterial({map: arrow}));
-				path_cube.name = "path";
-				path_cube.position.set(pos.x, pos.y, pos.z);
-				//console.log(path_cube);
+				// disegno di ogni sngola freccia
+				var geometry = new THREE.Geometry(); // geometria unica della freccia  per ridurre complessità generale
+				
+				// cilindro fa il corpo
+				var cylinder_geometry = new THREE.CylinderGeometry(0.1, 0.1, 0.65, 32 );
+				var cylinder = new THREE.Mesh( cylinder_geometry );
+				cylinder.rotation.x = 0.5*Math.PI;
+				
+				// cono fa la punta
+				var cone_geometry = new THREE.CylinderGeometry( 0.001, 0.3, 0.25, 4, 1 );
+				var cone = new THREE.Mesh( cone_geometry );
+				cone.rotation.x = 0.5*Math.PI;
+				cone.position.set(0, 0, 0.45);
+				cylinder.add(cone);
+				
+				// unione delle geometrie
+				cylinder.updateMatrix();
+				geometry.merge(cylinder.geometry, cylinder.matrix);
+				cone.updateMatrix();
+				geometry.merge(cone.geometry, cone.matrix);
+				geometry.scale(1, 0.3, 1);
+				var path_arrow = new THREE.Mesh( geometry );
+				path_arrow.name = "path";
+				path_arrow.position.set(pos.x, pos.y, pos.z);
+				
+				// rimozione ultima freccia perchè sempre troppo vicina al punto di arrivo
 				if(idx==path.length){
-					path_cube.lookAt(end);
+					path_arrow.lookAt(end);
 				} else {
-					path_cube.lookAt(path[idx]);
+					path_arrow.lookAt(path[idx]);
 					idx += 1; 
 				}
-				//scene.add(path_cube);
-				path_cube.updateMatrix();
-				path_geometry.merge(path_cube.geometry, path_cube.matrix);
+				path_arrow.updateMatrix();
+				path_geometry.merge(path_arrow.geometry, path_arrow.matrix);
 			});
-			path = new THREE.Mesh(path_geometry, new THREE.MeshBasicMaterial({map: arrow}))
+			path = new THREE.Mesh(path_geometry, new THREE.MeshBasicMaterial({color: 0xFFA500}))
 			path.name="path";
 			scene.add(path);
 		}
 		
-		
+		// funzione per ricerca del percorso migliore secondo l'algorimto A*
 		function find_path_astar(start, end){
-			var s = graph.grid[Math.round(start.z)][Math.round(start.x)];
-			var e = graph.grid[Math.round(end.z)][Math.round(end.x)];
-			var res = astar.search(graph, s, e, { heuristic: astar.heuristics.diagonal });
-			
 			var path = [];
-			var idx = 1;
-			res.forEach(node => { 
-				if(idx<res.length){
-					path.push(new THREE.Vector3(node.y, 1, node.x));
-					idx += 1;
-				}
-			});
-		
-			/*console.log(myGraph);
-			console.log(graph);
-			console.log(start.z);
-			console.log(start.x);
-			
-			console.log("try astar");
-			console.log("start");
-			console.log(s);
-			console.log("end");
-			console.log(e);
-			
-			console.log(res);*/
-			
-			//path = path.splice(-1, 1);
+			if(Math.round(start.x)>=0 && Math.round(start.x)<width && Math.round(start.z)>=0 && Math.round(start.z)<height && Math.round(end.x)>=0 && Math.round(end.x)<width && Math.round(end.z)>=0 && Math.round(end.z)<height){
+				var s = graph.grid[Math.round(start.z)][Math.round(start.x)];
+				var e = graph.grid[Math.round(end.z)][Math.round(end.x)];
+				var res = astar.search(graph, s, e, { heuristic: astar.heuristics.diagonal });
+				var idx = 1;
+				res.forEach(node => { 
+					if(idx<res.length){
+						path.push(new THREE.Vector3(node.y, 1, node.x));
+						idx += 1;
+					}
+				});
+			}
 			return path;
-		
-		
 		}
 		
 		
-		
+		// funzione per cancellare il percorso presente
 		function remove_old_path(){
 			//scene.remove(path);
 			var to_remove=[];
@@ -478,165 +465,94 @@
 			to_remove.forEach(el => {scene.remove(el)});
 		}
 		
+		// gestione DRAG&DROP
+		// variabili
+		var raycaster = new THREE.Raycaster();
+		var mouse = new THREE.Vector2();
+		var plane = new THREE.Plane();
+		var pNormal = new THREE.Vector3(0, 1, 0); // plane's normal
+		var planeIntersect = new THREE.Vector3(); // point of intersection with the plane
+		var pIntersect = new THREE.Vector3(); // point of intersection with an object (plane's point)
+		var shift = new THREE.Vector3(); // distance between position of an object and points of intersection with the object
+		var isDragging = false;
+		var dragObject;
 		
-		
-		
-		
-		
-		
-		
-		/*
-		
-		function find_path(start, end){
-			//console.log("start find_path");
-			var path = steps_in_dir(start, end);
-			//console.log("path: ");
-			console.log(path);
-			var right_step = path[path.length-1];
-			//console.log("right step: ");
-			console.log(right_step);
-			console.log((right_step.x >= (end.x-1) &&  right_step.x <= (end.x+1) && right_step.z >= (end.z-1) &&  right_step.z <= (end.z+1)));
-			while  (! (right_step.x >= (end.x-1) &&  right_step.x <= (end.x+1) && right_step.z >= (end.z-1) &&  right_step.z <= (end.z+1))){ 
-				var _path = steps_in_dir(right_step, end);
-				//console.log("in while found path");
-				//console.log(_path);
-				_path.forEach(right_step => { path.push(right_step);});
-				right_step = _path[_path.length-1];
-			}
-			console.log("exit while");
-			return path;
-		}
-
-		function steps_in_dir(start, end){
-			//console.log("start steps_in_dir");		
-			var dir = new THREE.Vector3();
-			dir.subVectors( end, start ).normalize();
-			var path_x = start.x+dir.x;
-			var path_z = start.z+dir.z;
-			if(checkInWall(path_x, path_z)==false){
-				console.log("first step ok");
-				console.log(new THREE.Vector3(path_x, 1, path_z));
-				return [new THREE.Vector3(path_x, 1, path_z)];
+		// eventi
+		// movimento del puntatore
+		document.addEventListener("pointermove", event => {
+			mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+			mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+			raycaster.setFromCamera(mouse, camera);
 				
-			} else {
-				console.log("Wall Found!");
-				var exit_point = find_exit_point(dir, start, end);
-				var final_path = [exit_point];
-				//var new_path = find_path(exit_point, end);
-				//new_path.forEach(point => {final_path.push(point)});
-				return final_path;
-			}
-		}
-		
-		function find_exit_point(orig_dir, start, end){
-			//console.log("Find Exit points");
-			var good_points = [];
-			var start_points = find_dirs(orig_dir, start, end);
-			//console.log(start_points);
-			start_points.forEach( _start => {
-				//console.log(_start);
-				var dir = new THREE.Vector3();
-				dir.subVectors( end, _start ).normalize();
-				var path_x = _start.x+dir.x;
-				var path_z = _start.z+dir.z;
-				if (checkInWall(path_x, path_z)==false){
-					good_points.push(new THREE.Vector3(path_x, 1, path_z));
+			if (isDragging) {
+				raycaster.ray.intersectPlane(plane, planeIntersect);
+				dragObject.position.addVectors(planeIntersect, shift);
+				
+				
+				if (dragObject.position != undefined){
+					// controllo se aggiungere la label "Point inside wall"
+					var inWall = checkInWall(dragObject.position.x, dragObject.position.z);
+						if (inWall==true){
+							var warning_label = makeTextSprite(" Point inside wall", { fontsize: 30, fontface: "Georgia", borderColor: {r:255, g:0, b:0, a:1.0} });
+							warning_label.name="warning";
+							warning_label.position.set(0, 7, 0);
+							dragObject.add(warning_label);
+						} else {
+							dragObject.children.forEach(function(child) {
+								if(child.name==="warning"){
+									dragObject.remove(child);
+								}
+							});
+						}
+					// controllo se ridisegnare il percorso
+					if( settings["pathfinding"]== true){
+						remove_old_path();
+						find_draw_path(start_cube.position, end_cube.position);
+					}
+					
+					// aggiornamento della gui
+					if (dragObject.name==="start_poi"){
+						settings['start'] = { x: dragObject.position.x, z: dragObject.position.z};
+						
+						start_controller_x.setValue(dragObject.position.x);
+						start_controller_x.updateDisplay();
+						
+						start_controller_z.setValue(dragObject.position.z);
+						start_controller_z.updateDisplay();
+					} else {
+						settings['end']= { x: dragObject.position.x, z: dragObject.position.z};
+						
+						end_controller_x.setValue(dragObject.position.x);
+						end_controller_x.updateDisplay();
+						
+						end_controller_z.setValue(dragObject.position.z);
+						end_controller_z.updateDisplay();
+					}
 				}
-			});
-			//console.log("good points");
-			
-			var mean_x=0;
-			var mean_z=0;
-			good_points.forEach(point => {
-				//console.log(point);
-				mean_x += point.x;
-				mean_z += point.z;
-			});
-			console.log("mean point x:"+mean_x/good_points.length+", z:"+mean_z/good_points.length);
-			sleepFor(1000);
-			return new THREE.Vector3(mean_x/good_points.length, 1, mean_z/good_points.length);
-			var random_point = good_points[(Math.random() * (good_points.length))];
-			console.log("random point");
-			console.log(random_point);
-			return random_point
-		}
+			}
+		});
+
+		// pressione click mouse
+		document.addEventListener("pointerdown", () => {
+			if (show_points==true){
+				var intersects = raycaster.intersectObjects([start_cube, end_cube]);
+				if (intersects.length > 0) {
+					controls.enabled = false;
+					pIntersect.copy(intersects[0].point);
+					plane.setFromNormalAndCoplanarPoint(pNormal, pIntersect);
+					shift.subVectors(intersects[0].object.position, intersects[0].point);
+					isDragging = true;
+					dragObject = intersects[0].object;	
+				}
+			}
+		} );
 		
-		function find_dirs(orig_dir, start, end){
-			//console.log("find dir");
-			var directions = [];
-			var x = start.x;
-			var z = start.z;
-			console.log(orig_dir);
-			
-			//console.log("check x+ z+");
-			//console.log(checkInWall(x+1, z+1) == false && (! (orig_dir.x>=0 && orig_dir.z>=0)));
-			if(checkInWall(x+1, z+1) == false && (! (orig_dir.x>=0 && orig_dir.z>=0))){
-				var step = new THREE.Vector3(x+1, 1, z+1);
-				directions.push(step);
-			}
-			
-			//console.log("check x+ z-");
-			//console.log(checkInWall(x+1, z+1) == false && (! (orig_dir.x>=0 && orig_dir.z>=0)));
-			if(checkInWall(x+1, z-1) == false && (! (orig_dir.x>=0 && orig_dir.z<=0))){
-				var step = new THREE.Vector3(x+1, 1, z-1);
-				directions.push(step);
-			}
-			
-			//console.log("check x+ z");
-			//console.log(checkInWall(x+1, z) == false && (! (orig_dir.x>=0 && orig_dir.z==0)));
-			if(checkInWall(x+1, z) == false && (! (orig_dir.x>=0 && orig_dir.z==0))){
-				var step = new THREE.Vector3(x+1, 1, z);
-				directions.push(step);
-			}
-			
-			//console.log("check x z+");
-			//console.log(checkInWall(x, z+1) == false && (! (orig_dir.x==0 && orig_dir.z>=0)));
-			if(checkInWall(x, z+1) == false && (! (orig_dir.x==0 && orig_dir.z>=0))){
-				var step = new THREE.Vector3(x, 1, z+1);
-				directions.push(step);
-			}
-			
-			//console.log("check x z-");
-			//console.log(checkInWall(x, z-1) == false && (! (orig_dir.x==0 && orig_dir.z<=0)));
-			if(checkInWall(x, z-1) == false && (! (orig_dir.x==0 && orig_dir.z<=0))){
-				var step = new THREE.Vector3(x, 1, z-1);
-				directions.push(step);
-			}
-			
-			//console.log("check x- z+");
-			//console.log(checkInWall(x-1, z+1) == false && (! (orig_dir.x<=0 && orig_dir.z>=0)));
-			if(checkInWall(x-1, z+1) == false && (! (orig_dir.x<=0 && orig_dir.z>=0))){
-				var step = new THREE.Vector3(x-1, 1, z+1);
-				directions.push(step);
-			}
-			
-			//console.log("check x- z-");
-			//console.log(checkInWall(x-1, z-1) == false && (! (orig_dir.x<=0 && orig_dir.z<=0)));
-			if(checkInWall(x-1, z-1) == false && (! (orig_dir.x<=0 && orig_dir.z<=0))){
-				var step = new THREE.Vector3(x-1, 1, z+1);
-				directions.push(step);
-			}
-			
-			//console.log("check x- z");
-			//console.log(checkInWall(x-1, z) == false && (! (orig_dir.x<=0 && orig_dir.z==0)));
-			if(checkInWall(x-1, z) == false && (! (orig_dir.x<=0 && orig_dir.z==0))){
-				var step = new THREE.Vector3(x-1, 1, z+1);
-				directions.push(step);
-			}
-			
-			return directions;
-		}
-		*/
-		
-		
-	
-		
-		/*function sleepFor( sleepDuration ){
-			var now = new Date().getTime();
-			while(new Date().getTime() < now + sleepDuration){  } 
-		}*/
-		
-		
+		// rilascio click mouse
+		document.addEventListener("pointerup", () => {
+			isDragging = false;
+			dragObject = null;
+			controls.enabled = true;
+		} );
 
 		</script>
 	</body>
