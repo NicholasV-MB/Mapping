@@ -1,0 +1,210 @@
+<!doctype html> 
+<html> 
+<head>
+	<meta charset="UTF-8">
+	<title>AR System</title>
+	<script src="lib/JSARToolKit.min.js"></script> 
+	<script src="lib/three.min.js"></script>
+	<!--<style>
+		canvas {
+			width: 100%;
+			height: 100%;
+		}
+	</script>-->
+	<script>
+	var path = window.path;
+	var scene, renderer, camera, markers, path_container, position_path;
+	var marker_found = false;
+	
+	/*
+	TODO implementa il DeviceMotionEvent
+	https://developer.mozilla.org/en-US/docs/Web/API/DeviceMotionEvent/DeviceMotionEvent
+	https://developers.google.com/web/fundamentals/native-hardware/device-orientation
+	window.addEventListener("devicemotion", handleMotion);
+	
+	var handleMotion = function(event){
+		console.log(event.acceleration);
+		console.log(event.acceleration);
+	};
+	*/
+	window.onload = function(){
+		// connect to webcam
+		var video = document.getElementById("hiddenVideo");	
+		var constraints = {audio: false, video: true};
+		navigator.mediaDevices.getUserMedia(constraints)
+		.then(function(stream){
+			video.srcObject = stream;
+		})
+		.catch(function(err){
+			alert(err.name + ": " + err.message);	
+			video.src = "marker.webm";
+		});
+		
+		// once we have the video stream, we can start processing it
+		video.onloadedmetadata = start_processing;
+	}
+
+	function start_processing(event){
+
+		// Set up video and canvas
+		var hvideo = document.getElementById("hiddenVideo");
+		var hcanvas = document.getElementById("hiddenCanvas");
+		var dcanvas = document.getElementById("drawingCanvas");
+		var ocanvas = document.getElementById("outCanvas");
+		hcanvas.width = ocanvas.width = dcanvas.width = hvideo.clientWidth;
+		hcanvas.height = ocanvas.height = dcanvas.height = hvideo.clientHeight;
+		hvideo.style.display = "none";
+		hcanvas.style.display = "none";
+		dcanvas.style.display = "none";
+		
+		// setup JSARToolKit
+		var ART_raster = new NyARRgbRaster_Canvas2D(hcanvas);
+		var ART_param = new FLARParam(hcanvas.width, hcanvas.height);
+		var ART_detector = new FLARMultiIdMarkerDetector(ART_param, 65);
+		ART_detector.setContinueMode(true);
+		
+		// setup three.js
+		renderer = new THREE.WebGLRenderer( {canvas: dcanvas} );
+		renderer.autoClear = false;
+		
+		// create the background plane and its own camera
+		var bgTexture = new THREE.Texture(hcanvas);
+		bgTexture.minFilter = THREE.LinearFilter;
+		var bgPlane = new THREE.Mesh(
+			new THREE.PlaneGeometry(2,2),
+			new THREE.MeshBasicMaterial({
+				map: bgTexture,
+				depthTest: false,  // disable Z-Buffering
+				depthWrite: false
+			})
+		);
+		var bgCamera = new THREE.OrthographicCamera(-1,1,1,-1);
+		bgCamera.position.z = 1;
+		var bgScene = new THREE.Scene();
+		bgScene.add(bgPlane);
+		bgScene.add(bgCamera);
+		
+		// set up the main scene and camera with JSART parameters
+		scene = new THREE.Scene();
+		camera = new THREE.Camera();
+		var tmp = new Float32Array(16);
+		ART_param.copyCameraMatrix(tmp, 1, 10000);
+		camera.projectionMatrix = ConvertCameraMatrix(tmp);
+		scene.add(camera);
+		
+		
+		//scene.add(path);
+		console.log(path);
+		path_container = new THREE.Object3D();
+		path_container.matrixAutoUpdate = false;
+		scene.add(path_container);
+		//path.scale.set(10, 10, 10);
+		//var path = drawPath();
+		path.visible = false;
+		path_container.add(path);
+		
+		// process each frame
+		setInterval(function(){
+
+			// update the hidden canvas 
+			hcanvas.getContext("2d").drawImage(hvideo, 0, 0, hcanvas.width, hcanvas.height);
+			hcanvas.changed = true;
+			bgTexture.needsUpdate = true;
+			
+			// draw background
+			renderer.clear();
+			renderer.render(bgScene, bgCamera);
+			
+			// detect markers
+			if (marker_found==false || marker_found==true){
+				var markerCount = ART_detector.detectMarkerLite(ART_raster, 95);
+				if(markerCount > 0){
+					var tmat = new NyARTransMatResult();
+
+					// save id e position of the markers
+					markers = {};
+					for(var idx = 0; idx < markerCount; idx++){
+						var id = ART_detector.getIdMarkerData(idx);
+						// Read bytes from the id packet.
+						var currId = -1;
+						// This code handles only 32-bit numbers or shorter.
+						if (id.packetLength <= 4) {
+							currId = 0;
+							for (var i = 0; i < id.packetLength; i++) {
+								currId = (currId << 8) | id.getPacketData(i);
+							}
+						}
+						
+						// If this is a new id, let's start tracking it.
+						if (markers[currId] == null) {
+							markers[currId] = {};
+						}
+
+						// Get the transformation matrix for the detected marker.
+						ART_detector.getTransformMatrix(idx, tmat);
+
+						// Copy the result matrix into our marker tracker object.
+						markers[currId].transform = ConvertMarkerMatrix(tmat);
+					}
+					if ( marker_found==false ){	// draw the path
+
+						console.log("found");
+						marker_found=true;
+						path.visible=true;
+						position_path = markers[0].transform;
+						path_container.matrix = position_path;
+						
+					} 
+					/* test movimento della camera
+					else {
+						camera.position.x += 1;
+					}
+					*/
+				}
+			}
+			renderer.render(scene, camera);
+			// dcanvas now ready. Copy it to ocanvas to show it
+			ocanvas.getContext("2d").drawImage( dcanvas, 0, 0, dcanvas.width, dcanvas.height );
+		}, 40);
+	}
+	
+	// convert the camera projection matrix from JSARToolKit to Three.js format
+	function ConvertCameraMatrix(m) {
+		myMat = new THREE.Matrix4();
+		myMat.set(
+			m[0], m[4], m[8], m[12],
+			-m[1], -m[5], -m[9], -m[13],
+			m[2], m[6], m[10], m[14],
+			m[3], m[7], m[11], m[15]	
+		);
+		return myMat;
+	}
+	
+	// convert the marker matrix from JSARToolKit to Three.js format
+	function ConvertMarkerMatrix(m){
+		myMat = new THREE.Matrix4();
+		myMat.set(
+			m.m00, m.m02, -m.m01, m.m03,
+			m.m10, m.m12, -m.m11, m.m13, 
+			m.m20, m.m22, -m.m21, m.m23,
+			0, 0, 0, 1	
+		);
+		return myMat;
+	}
+
+
+	
+
+   
+
+
+	
+	</script>
+</head> 
+<body>
+	<video autoplay controls id="hiddenVideo" width="100%" height="100%"></video> 
+	<canvas id="hiddenCanvas" width="100%" height="100%"></canvas>
+	<canvas id="drawingCanvas" width="100%" height="100%"></canvas>
+	<canvas id="outCanvas" width="100%" height="100%"></canvas>
+</body>
+</html>

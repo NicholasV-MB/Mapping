@@ -21,6 +21,7 @@
 		<script src="lib/Coordinates.js"></script>
 		<script src="lib/OrbitControls.js"></script>
 		<script src="lib/dat.gui.min.js"></script>
+		<script src="lib/OBJExporter.js "></script>
 		<script type='text/javascript' src='lib/astar.js'></script>
 	</head>
 	<body>
@@ -33,12 +34,14 @@
 		var x_center, y_center, z_center;
 		var gui, start_cube, start_label, end_cube, end_label; 
 		var start_controller_x, start_controller_z, end_controller_x, end_controller_z, mapping_gui, pathfinding_gui; 
+		var path_rendered, ar_controller, ar_window;
 		var show_points = false;
 		var map_dir = 'maps/';
 		var settings = {
 			map: "default",
 			mapping: false,
-			pathfinding: false
+			pathfinding: false,
+			AR: false
 		};
 		
 		
@@ -72,10 +75,6 @@
 			// controllo dei moviementi della camera
 			controls = new THREE.OrbitControls( camera, renderer.domElement  );
 			controls.addEventListener( 'change', Render );
-  			//controls.minDistance = 1;
-  			//controls.maxDistance = 10000;
-			//controls.target.copy(container.position);
-  			//controls.update();
 			
 			// luce dell'ambiente notturno
 			hemiLight = new THREE.HemisphereLight( 0x252850, 0x252850, 0.6 );
@@ -236,8 +235,10 @@
 				settings['pathfing'] = false;
 				mapping_gui.setValue(false);
 				mapping_gui.updateDisplay();
-				pathfinding_gui.setValue(false);
-				pathfinding_gui.updateDisplay();
+				if (pathfinding_gui !== undefined){
+					pathfinding_gui.setValue(false);
+					pathfinding_gui.updateDisplay();
+				}
 			});
 			// controllo per abilitare sistema di mapping
 			mapping_gui = gui.add(settings, "mapping").onChange( function(newVal) {
@@ -245,6 +246,10 @@
 				if(newVal == false){
 					scene.remove(start_cube);
 					scene.remove(end_cube);
+					scene.remove(path_rendered);
+					settings["pathfinding"] = false;
+					settings["AR"] = false;
+					ar_window.close();
 				}
 				buildGui();
 			});
@@ -293,10 +298,29 @@
 				pathfinding_gui = gui.add(settings, "pathfinding").onChange( function(newVal) {
 					if(newVal == true){
 						find_draw_path(start_cube.position, end_cube.position);
+						
+						ar_controller.__li.setAttribute( "style", "display: " );
+						
 					} else {
 						remove_old_path();
+						//gui.remove(ar_controller);
+						ar_controller.__li.setAttribute( "style", "display: none" );
 					}
 				});
+				
+				// controller realtà aumentata
+				ar_controller = gui.add(settings, "AR").onChange( function(newVal) {
+					if(newVal == true){
+						// chimata alla funzione che avvia la realtà aumentata
+						startAR();
+						
+						
+					} else {
+						ar_window.close();
+					}
+				});
+				ar_controller.__li.setAttribute( "style", "display: none" );
+				
 			}
 		}
 		
@@ -429,9 +453,9 @@
 				path_arrow.updateMatrix();
 				path_geometry.merge(path_arrow.geometry, path_arrow.matrix);
 			});
-			path = new THREE.Mesh(path_geometry, new THREE.MeshBasicMaterial({color: 0xFFA500}))
-			path.name="path";
-			scene.add(path);
+			path_rendered = new THREE.Mesh(path_geometry, new THREE.MeshBasicMaterial({color: 0xFFA500}))
+			path_rendered.name="path";
+			scene.add(path_rendered);
 		}
 		
 		// funzione per ricerca del percorso migliore secondo l'algorimto A*
@@ -553,6 +577,21 @@
 			dragObject = null;
 			controls.enabled = true;
 		} );
+		
+		//funzione che gestisce il passaggio a reltà aumentata
+		function startAR(){
+			ar_window = window.open("ar_sistem.html"); //, "_self");
+			var my_path = path_rendered;
+			/*my_path.geometry.vertices.forEach( vert=>{
+			vert.x -= start_cube.position.x; 
+			vert.z -= start_cube.position.z;
+			});*/
+			my_path.geometry.translate( -start_cube.position.x, 0, -start_cube.position.z);
+			my_path.geometry.scale(50, 50, 50);
+			ar_window.path = my_path;
+			
+		}
+		
 
 		</script>
 	</body>
