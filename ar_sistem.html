@@ -116,51 +116,48 @@
 			renderer.render(bgScene, bgCamera);
 			
 			// detect markers
-			if (marker_found==false || marker_found==true){
-				var markerCount = ART_detector.detectMarkerLite(ART_raster, 95);
-				if(markerCount > 0){
-					var tmat = new NyARTransMatResult();
-
-					// save id e position of the markers
-					markers = {};
-					for(var idx = 0; idx < markerCount; idx++){
-						var id = ART_detector.getIdMarkerData(idx);
-						// Read bytes from the id packet.
-						var currId = -1;
-						// This code handles only 32-bit numbers or shorter.
-						if (id.packetLength <= 4) {
-							currId = 0;
-							for (var i = 0; i < id.packetLength; i++) {
-								currId = (currId << 8) | id.getPacketData(i);
-							}
+			var markerCount = ART_detector.detectMarkerLite(ART_raster, 95);
+			if(markerCount > 0){
+				var tmat = new NyARTransMatResult();
+				// save id e position of the markers
+				markers = {};
+				for(var idx = 0; idx < markerCount; idx++){
+					var id = ART_detector.getIdMarkerData(idx);
+					// Read bytes from the id packet.
+					var currId = -1;
+					// This code handles only 32-bit numbers or shorter.
+					if (id.packetLength <= 4) {
+						currId = 0;
+						for (var i = 0; i < id.packetLength; i++) {
+							currId = (currId << 8) | id.getPacketData(i);
 						}
-						
-						// If this is a new id, let's start tracking it.
-						if (markers[currId] == null) {
-							markers[currId] = {};
-						}
+					}
+					
+					// If this is a new id, let's start tracking it.
+					if (markers[currId] == null) {
+						markers[currId] = {};
+					}
 
-						// Get the transformation matrix for the detected marker.
-						ART_detector.getTransformMatrix(idx, tmat);
+					// Get the transformation matrix for the detected marker.
+					ART_detector.getTransformMatrix(idx, tmat);
 
 						// Copy the result matrix into our marker tracker object.
-						markers[currId].transform = ConvertMarkerMatrix(tmat);
-					}
-					if ( marker_found==false ){	// draw the path
-
-						console.log("found");
-						marker_found=true;
-						path.visible=true;
-						position_path = markers[0].transform;
-						path_container.matrix = position_path;
-						
-					} 
-					/* test movimento della camera
-					else {
-						camera.position.x += 1;
-					}
-					*/
+					markers[currId].transform = ConvertMarkerMatrix(tmat);
 				}
+				if ( marker_found==false ){	// draw the path
+
+					console.log("found");
+					marker_found=true;
+					path.visible=true;
+					position_path = markers[0].transform;
+					path_container.matrix = position_path;
+						
+				} 
+				/* test movimento della camera
+				else {
+					camera.position.x += 1;
+				}
+				*/
 			}
 			renderer.render(scene, camera);
 			// dcanvas now ready. Copy it to ocanvas to show it
