@@ -311,9 +311,11 @@
 				// controller realtà aumentata
 				ar_controller = gui.add(settings, "AR").onChange( function(newVal) {
 					if(newVal == true){
-						// chimata alla funzione che avvia la realtà aumentata
+						// chiamata alla funzione che avvia la realtà aumentata
 						startAR();
-						
+						// dalla scena viene tolto il percorso, allora lo riaggiungo
+						remove_old_path();
+						find_draw_path(start_cube.position, end_cube.position);
 						
 					} else {
 						ar_window.close();
@@ -578,14 +580,10 @@
 			controls.enabled = true;
 		} );
 		
-		//funzione che gestisce il passaggio a reltà aumentata
+		// funzione che gestisce il passaggio a realtà aumentata
 		function startAR(){
 			ar_window = window.open("ar_sistem.html"); //, "_self");
 			var my_path = path_rendered;
-			/*my_path.geometry.vertices.forEach( vert=>{
-			vert.x -= start_cube.position.x; 
-			vert.z -= start_cube.position.z;
-			});*/
 			my_path.geometry.translate( -start_cube.position.x, 0, -start_cube.position.z);
 			my_path.geometry.scale(50, 50, 50);
 			ar_window.path = my_path;
